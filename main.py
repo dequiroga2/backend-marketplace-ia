@@ -85,14 +85,8 @@ async def proxy_to_n8n(
         try:
             # ✅ 3. Espera y GUARDA la respuesta de n8n
             n8n_response = await client.post(n8n_webhook_url, json=n8n_payload, timeout=60.0)
-            
-            # ✅ 4. Reenvía la respuesta EXACTA de n8n al frontend
-            # Esto incluye el cuerpo (texto), el código de estado y el tipo de contenido.
-            return Response(
-                content=n8n_response.content,
-                status_code=n8n_response.status_code,
-                media_type=n8n_response.headers.get("content-type")
-            )
+            n8n_response.raise_for_status()
+            return n8n_response.json()
 
         except httpx.TimeoutException:
             raise HTTPException(status_code=504, detail="Timeout: n8n tardó demasiado en responder.")
