@@ -3,6 +3,7 @@ import httpx
 import uvicorn
 import firebase_admin
 import time
+from pydantic import BaseModel
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,6 +39,14 @@ app.add_middleware(
 
 security_scheme = HTTPBearer()
 
+class N8NBody(BaseModel):
+    message: str
+    botId: str
+    avatarId: str | None = None
+    voiceId: str | None = None
+    videoWidth: int | None = None
+    videoHeight: int | None = None
+
 async def get_current_user(token: HTTPAuthorizationCredentials = Depends(security_scheme)):
     """
     Toma el token Bearer del header, lo verifica con Firebase y devuelve los
@@ -57,6 +66,40 @@ async def get_current_user(token: HTTPAuthorizationCredentials = Depends(securit
 HEYGEN_API_URL = "https://api.heygen.com/v2"
 HEYGEN_API_KEY = os.getenv("HEYGEN_API_KEY")
 HEADERS = {"accept": "application/json", "x-api-key": HEYGEN_API_KEY}
+
+@app.post("/api/n8n")
+async def proxy_to_n8n(
+    body: N8NBody, # ✅ 2. Usa el nuevo modelo flexible
+    user_data: dict = Depends(get_current_user)
+):
+    user_uid = user_data.get("uid")
+    print(f"Petición de proxy a n8n para el usuario UID: {user_uid}")
+
+    n8n_payload = body.dict()
+    n8n_payload["uid"] = user_uid
+    
+    # Asegúrate de que esta es la URL correcta de tu webhook en n8n
+    n8n_webhook_url = "https://automation.luminotest.com/webhook/53816d93-2be0-4df2-8dec-031847e0bed1"
+
+    async with httpx.AsyncClient() as client:
+        try:
+            # ✅ 3. Espera y GUARDA la respuesta de n8n
+            n8n_response = await client.post(n8n_webhook_url, json=n8n_payload, timeout=60.0)
+            
+            # ✅ 4. Reenvía la respuesta EXACTA de n8n al frontend
+            # Esto incluye el cuerpo (texto), el código de estado y el tipo de contenido.
+            return Response(
+                content=n8n_response.content,
+                status_code=n8n_response.status_code,
+                media_type=n8n_response.headers.get("content-type")
+            )
+
+        except httpx.TimeoutException:
+            raise HTTPException(status_code=504, detail="Timeout: n8n tardó demasiado en responder.")
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Error al contactar n8n: {str(e)}")
+
+
 
 @app.get("/api/voices")
 async def get_voices(user_data: dict = Depends(get_current_user)):
