@@ -89,7 +89,7 @@ async def proxy_to_n8n(
             print(n8n_response)
             response_text = n8n_response.text
             print(f"Respuesta cruda de n8n (texto): '{response_text}'")
-            return n8n_response.json()
+            return n8n_response
 
         except httpx.TimeoutException:
             raise HTTPException(status_code=504, detail="Timeout: n8n tardó demasiado en responder.")
