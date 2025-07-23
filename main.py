@@ -50,8 +50,8 @@ class N8NBody(BaseModel):
     botId: str
     avatarId: str | None = None
     voiceId: str | None = None
-    videoWidth: int | None = None
-    videoHeight: int | None = None
+    width: int | None = None
+    height: int | None = None
     type: str
 
 async def get_current_user(token: HTTPAuthorizationCredentials = Depends(security_scheme)):
