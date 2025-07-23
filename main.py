@@ -52,6 +52,7 @@ class N8NBody(BaseModel):
     voiceId: str | None = None
     videoWidth: int | None = None
     videoHeight: int | None = None
+    type: str
 
 async def get_current_user(token: HTTPAuthorizationCredentials = Depends(security_scheme)):
     """
