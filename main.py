@@ -127,7 +127,7 @@ async def upload_image_from_n8n(
     
     # Construye la URL pública completa. 
     # ❗️ ATENCIÓN: Necesitarás añadir la URL de tu backend como variable de entorno
-    base_url = os.getenv("BACKEND_PUBLIC_URL", "http://localhost:8000")
+    base_url = os.getenv("BACKEND_PUBLIC_URL")
     full_image_url = f"{base_url}/{file_path}"
     
     print(f"Imagen guardada para UID {uid} en: {full_image_url}")
