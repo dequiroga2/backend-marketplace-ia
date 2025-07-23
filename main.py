@@ -4,9 +4,11 @@ import uvicorn
 import firebase_admin
 import time
 from pydantic import BaseModel
+import uuid
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, Form, Header, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from firebase_admin import credentials, auth
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
@@ -22,6 +24,10 @@ cred = credentials.Certificate("firebase-credentials.json")
 firebase_admin.initialize_app(cred)
 
 app = FastAPI()
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+N8N_SECRET_KEY = os.getenv("N8N_SECRET_KEY")
 
 origins = [
     "http://localhost:5173",
@@ -67,6 +73,13 @@ HEYGEN_API_URL = "https://api.heygen.com/v2"
 HEYGEN_API_KEY = os.getenv("HEYGEN_API_KEY")
 HEADERS = {"accept": "application/json", "x-api-key": HEYGEN_API_KEY}
 
+async def verify_n8n_secret(x_n8n_secret: str | None = Header(None)):
+    if not N8N_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="La clave secreta del servidor no está configurada.")
+    if x_n8n_secret != N8N_SECRET_KEY:
+        raise HTTPException(status_code=403, detail="Acceso denegado: Clave secreta inválida.")
+    return True
+
 @app.post("/api/n8n")
 async def proxy_to_n8n(
     body: N8NBody, # ✅ 2. Usa el nuevo modelo flexible
@@ -94,6 +107,32 @@ async def proxy_to_n8n(
             raise HTTPException(status_code=504, detail="Timeout: n8n tardó demasiado en responder.")
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Error al contactar n8n: {str(e)}")
+        
+
+@app.post("/api/upload-image")
+async def upload_image_from_n8n(
+    uid: str = Form(...),
+    image_file: UploadFile = File(...),
+    is_secret_valid: bool = Depends(verify_n8n_secret)
+):
+    # Genera un nombre de archivo único para evitar sobreescrituras
+    file_extension = os.path.splitext(image_file.filename)[1]
+    unique_filename = f"{uuid.uuid4()}{file_extension}"
+    file_path = f"static/images/{unique_filename}"
+
+    # Guarda el contenido del archivo en el servidor
+    with open(file_path, "wb") as buffer:
+        buffer.write(await image_file.read())
+    
+    # Construye la URL pública completa. 
+    # ❗️ ATENCIÓN: Necesitarás añadir la URL de tu backend como variable de entorno
+    base_url = os.getenv("BACKEND_PUBLIC_URL", "http://localhost:8000")
+    full_image_url = f"{base_url}/{file_path}"
+    
+    print(f"Imagen guardada para UID {uid} en: {full_image_url}")
+
+    # Devuelve la URL pública a n8n
+    return {"imageUrl": full_image_url}
 
 
 
